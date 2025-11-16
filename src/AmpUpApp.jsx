@@ -9,6 +9,10 @@ export default function AmpUpApp() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [authToken, setAuthToken] = useState('');
   const [userData, setUserData] = useState(null);
+  const [placeId, setPlaceId] = useState('');
+  const [placeData, setPlaceData] = useState(null);
+  const [isLoadingPlace, setIsLoadingPlace] = useState(false);
+  const [placeError, setPlaceError] = useState('');
 
   const handleLogin = async () => {
     setError('');
@@ -29,14 +33,14 @@ export default function AmpUpApp() {
       const data = await response.json();
       console.log('API Response:', data);
 
-      // Check if login failed - API returns status: "FAIL" on error
       if (data.status === 'FAIL') {
         console.log('Login failed - status is FAIL');
         setError(data.message || data.reason || 'Invalid credentials. Please try again.');
       } else {
-        // Successful login
         console.log('Login successful');
-        setAuthToken(data.token || data.access_token || data.auth_token || '');
+        const token = data.data?.access_token || data.data?.token || data.token || data.access_token || data.auth_token || '';
+        console.log('Auth Token Set:', token.substring(0, 40) + '...');
+        setAuthToken(token);
         setUserData(data);
         setIsLoggedIn(true);
         setPassword('');
@@ -62,6 +66,57 @@ export default function AmpUpApp() {
     setUsername('');
     setPassword('');
     setError('');
+    setPlaceId('');
+    setPlaceData(null);
+    setPlaceError('');
+  };
+
+  const handleLookupPlace = async () => {
+    if (!placeId) {
+      setPlaceError('Please enter a place ID');
+      return;
+    }
+
+    if (!authToken) {
+      setPlaceError('Authorization token is missing. Please log in again.');
+      return;
+    }
+
+    setPlaceError('');
+    setIsLoadingPlace(true);
+
+    try {
+      const response = await fetch(`/api/ampup/places/${placeId}?is_public=false`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authToken}`,
+        },
+      });
+
+      const data = await response.json();
+      console.log('Place data:', data);
+
+      if (data.status === 'FAIL' || data.error) {
+        setPlaceError(data.message || data.reason || 'Failed to fetch place information');
+        setPlaceData(null);
+      } else {
+        setPlaceData(data);
+        setPlaceError('');
+      }
+    } catch (err) {
+      console.error('Place lookup error:', err);
+      setPlaceError('Unable to fetch place information. Please try again.');
+      setPlaceData(null);
+    } finally {
+      setIsLoadingPlace(false);
+    }
+  };
+
+  const handlePlaceKeyPress = (e) => {
+    if (e.key === 'Enter' && placeId && !isLoadingPlace) {
+      handleLookupPlace();
+    }
   };
 
   if (isLoggedIn) {
@@ -87,6 +142,53 @@ export default function AmpUpApp() {
             <p className="text-green-800 font-medium">✓ Successfully logged in as {username}</p>
           </div>
 
+          {/* Place Lookup Section */}
+          <div className="bg-white border border-gray-200 rounded-lg p-6 mb-6">
+            <h2 className="text-xl font-semibold mb-4 text-gray-800">Look Up Place Information</h2>
+            
+            {placeError && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4 flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
+                <p className="text-red-800 text-sm">{placeError}</p>
+              </div>
+            )}
+
+            <div className="flex gap-3">
+              <input
+                type="number"
+                value={placeId}
+                onChange={(e) => setPlaceId(e.target.value)}
+                onKeyPress={handlePlaceKeyPress}
+                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none"
+                placeholder="Enter place ID (e.g., 3881)"
+                disabled={isLoadingPlace}
+              />
+              <button
+                onClick={handleLookupPlace}
+                disabled={isLoadingPlace || !placeId}
+                className="px-6 py-2 bg-green-500 text-white rounded-lg font-medium hover:bg-green-600 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                {isLoadingPlace ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Loading...
+                  </>
+                ) : (
+                  'Lookup'
+                )}
+              </button>
+            </div>
+
+            {placeData && (
+              <div className="mt-4 bg-gray-50 rounded-lg p-4">
+                <h3 className="font-semibold text-gray-800 mb-2">Place Details:</h3>
+                <pre className="bg-white p-4 rounded border border-gray-200 overflow-auto text-xs max-h-96">
+                  {JSON.stringify(placeData, null, 2)}
+                </pre>
+              </div>
+            )}
+          </div>
+
           <div className="bg-gray-50 rounded-lg p-6">
             <h2 className="text-xl font-semibold mb-4 text-gray-800">Session Information</h2>
             <div className="space-y-2 text-sm">
@@ -98,7 +200,7 @@ export default function AmpUpApp() {
               )}
               {userData && (
                 <div className="mt-4">
-                  <p className="font-medium text-gray-700 mb-2">Response Data:</p>
+                  <p className="font-medium text-gray-700 mb-2">Login Response Data:</p>
                   <pre className="bg-white p-4 rounded border border-gray-200 overflow-auto text-xs max-h-96">
                     {JSON.stringify(userData, null, 2)}
                   </pre>
