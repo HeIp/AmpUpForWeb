@@ -15,32 +15,35 @@ export default function AmpUpApp() {
     setIsLoading(true);
 
     try {
-      const response = await fetch('https://main.ampupapis.com/login', {
+      const response = await fetch('/api/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          username: username,
+          email: username,
           password: password,
         }),
       });
 
       const data = await response.json();
+      console.log('API Response:', data);
 
-      if (response.ok) {
+      // Check if login failed - API returns status: "FAIL" on error
+      if (data.status === 'FAIL') {
+        console.log('Login failed - status is FAIL');
+        setError(data.message || data.reason || 'Invalid credentials. Please try again.');
+      } else {
         // Successful login
-        setAuthToken(data.token || data.access_token || '');
+        console.log('Login successful');
+        setAuthToken(data.token || data.access_token || data.auth_token || '');
         setUserData(data);
         setIsLoggedIn(true);
-        setPassword(''); // Clear password from state
-      } else {
-        // Login failed
-        setError(data.message || 'Invalid credentials. Please try again.');
+        setPassword('');
       }
     } catch (err) {
-      setError('Unable to connect to AmpUp API. Please check your connection.');
       console.error('Login error:', err);
+      setError('Unable to connect to AmpUp API. Please check your connection.');
     } finally {
       setIsLoading(false);
     }
@@ -138,16 +141,16 @@ export default function AmpUpApp() {
         <div className="space-y-6">
           <div>
             <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-2">
-              Username
+              Email
             </label>
             <input
               id="username"
-              type="text"
+              type="email"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               onKeyPress={handleKeyPress}
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition-all"
-              placeholder="Enter your username"
+              placeholder="Enter your email"
               disabled={isLoading}
             />
           </div>
